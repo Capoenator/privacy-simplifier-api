@@ -39,7 +39,8 @@ ${text.substring(0, 3000)}...`;
 
     res.json({ summary: response.data.choices[0].message.content.trim() });
   } catch (err) {
-    console.error(err);
+    console.error('AI Error Details:', JSON.stringify(err, null, 2));
+    console.error('OpenAI Response:', err.response?.data);
     res.status(500).json({ error: 'AI processing failed' });
   }
 });
