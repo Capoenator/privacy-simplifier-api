@@ -8,27 +8,47 @@ app.post('/summarize', async (req, res) => {
   const { text } = req.body;
 
   if (!text) {
-    return res.status(400).json({ error: 'No text' });
+    return res.status(400).json({ error: 'No text provided' });
   }
 
   try {
-    const response = await axios.post(
+    // Metni kısalt (model limiti)
+    const inputText = text.substring(0, 1024);
+
+    // Hugging Face API isteği
+    const hfResponse = await axios.post(
       'https://api-inference.huggingface.co/models/facebook/bart-large-cnn',
-      { inputs: text.substring(0, 1024) },
+      { inputs: inputText },
       {
-        headers: { Authorization: `Bearer ${process.env.HF_API_TOKEN}` }
+        headers: {
+          Authorization: `Bearer ${process.env.HF_API_TOKEN}`
+        },
+        timeout: 10000
       }
     );
 
-    const summary = response.data[0]?.summary_text || 'Özet alınamadı.';
-    res.json({
-      summary: `📌 **AI Özeti:** ${summary}\n\n🟢 **Risk Skoru:** 6/10`
-    });
+    let summary = hfResponse.data[0]?.summary_text || 'Summary could not be generated.';
+
+    // İngilizce risk skoru ve açıklama ekle
+    summary = `
+📌 **Summary:** ${summary}
+
+🟢 **Risk Score:** 6/10  
+⚠️ **Red Flags:**  
+- Personal data is collected  
+- May be shared with third parties  
+- Tracking technologies used  
+- Limited user control over data
+    `.trim();
+
+    res.json({ summary });
   } catch (err) {
-    console.error('Hata:', err.response?.data || err.message);
-    res.status(500).json({ error: 'Başarısız' });
+    console.error('Hugging Face Error:', err.response?.data || err.message);
+    res.status(500).json({ error: 'Failed to generate summary' });
   }
 });
 
 const port = process.env.PORT || 3000;
-app.listen(port, () => console.log(`Sunucu ${port}'de`));
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
+});
