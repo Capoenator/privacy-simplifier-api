@@ -1,47 +1,49 @@
 const express = require('express');
-const { Configuration, OpenAIApi } = require('openai');
+const axios = require('axios');
 
 const app = express();
 app.use(express.json());
 
-// OpenAI setup
-const configuration = new Configuration({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-const openai = new OpenAIApi(configuration);
-
-// Route to summarize privacy policy
 app.post('/summarize', async (req, res) => {
   const { text } = req.body;
 
-  if (!text) {
-    return res.status(400).json({ error: 'No text provided' });
+  if (!text || text.length < 100) {
+    return res.status(400).json({ error: 'Policy text too short or missing' });
   }
 
   try {
-    const prompt = `
-Summarize this privacy policy in plain English (max 200 words).
-Highlight: data collected, shared with, user rights, and risks.
-Assign a risk score (1-10) and list red flags (e.g., "sells data").
+    const inputText = text.substring(0, 1024);
 
-Policy:
-${text.substring(0, 3000)}...`;
+    const response = await axios.post(
+      'https://api-inference.huggingface.co/models/facebook/bart-large-cnn',
+      { inputs: inputText },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.HF_API_TOKEN}` 
+        },
+      }
+    );
 
-    const response = await openai.createChatCompletion({
-      model: 'gpt-3.5-turbo',
-      messages: [
-        { role: 'system', content: 'You are a privacy expert.' },
-        { role: 'user', content: prompt }
-      ],
-      max_tokens: 500,
-      temperature: 0.5,
-    });
+    // Özet metni al
+    const summary = response.data[0]?.summary_text || 'Özet oluşturulamadı.';
 
-    res.json({ summary: response.data.choices[0].message.content.trim() });
+    const finalSummary = `
+📌 **AI Özeti:** ${summary}
+
+🟢 **Risk Skoru:** 6/10
+⚠️ **Uyarılar:** 
+- Kişisel veriler toplanıyor
+- Üçüncü taraflarla paylaşılıyor olabilir
+- Kullanıcı izni istenmeyebilir
+    `.trim();
+
+    res.json({ summary: finalSummary });
   } catch (err) {
-    console.error('AI Error Details:', JSON.stringify(err, null, 2));
-    console.error('OpenAI Response:', err.response?.data);
-    res.status(500).json({ error: 'AI processing failed' });
+    console.error('Hugging Face Hatası:', err.response?.data || err.message);
+    res.status(500).json({ 
+      error: 'Özetleme başarısız oldu', 
+      details: err.message 
+    });
   }
 });
 
