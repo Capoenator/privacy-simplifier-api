@@ -7,9 +7,6 @@
   },
   "dependencies": {
     "express": "^4.18.0",
-    "openai": "^3.3.0"
-  },
-  "engines": {
-    "node": "18.x"
+    "axios": "^1.6.0"
   }
 }
