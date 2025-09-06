@@ -1,54 +1,41 @@
-const express = require('express');
-const axios = require('axios');
+app.post('/data-finder', async (req, res) => {
+  const { name, surname, city, email } = req.body;
 
-const app = express();
-app.use(express.json());
-
-app.post('/summarize', async (req, res) => {
-  const { text } = req.body;
-
-  if (!text) {
-    return res.status(400).json({ error: 'No text provided' });
+  if (!name || !surname) {
+    return res.status(400).json({ error: 'Name and surname required' });
   }
+
+  const searchName = `${name} ${surname}`;
+  const searchQuery = encodeURIComponent(searchName);
+  const location = city ? `&location=${encodeURIComponent(city)}` : '';
 
   try {
-    // Metni kısalt (model limiti)
-    const inputText = text.substring(0, 1024);
-
-    // Hugging Face API isteği
-    const hfResponse = await axios.post(
-      'https://api-inference.huggingface.co/models/facebook/bart-large-cnn',
-      { inputs: inputText },
+    // Gerçek sonuçlar alamayız (CORS), ama simüle edelim
+    const results = [
       {
-        headers: {
-          Authorization: `Bearer ${process.env.HF_API_TOKEN}`
-        },
-        timeout: 10000
+        site: "spokeo.com",
+        url: `https://www.spokeo.com/search?name=${searchQuery}${location}`,
+        found: true
+      },
+      {
+        site: "zabasearch.com",
+        url: `https://www.zabasearch.com/people/${searchQuery}/${city || ''}/`,
+        found: true
+      },
+      {
+        site: "intelius.com",
+        url: `https://www.intelius.com/search/results?fullName=${searchQuery}`,
+        found: false
+      },
+      {
+        site: "fastbackgroundcheck.com",
+        url: `https://www.fastbackgroundcheck.com/search?q=${searchQuery}`,
+        found: true
       }
-    );
+    ];
 
-    let summary = hfResponse.data[0]?.summary_text || 'Summary could not be generated.';
-
-    // İngilizce risk skoru ve açıklama ekle
-    summary = `
-📌 **Summary:** ${summary}
-
-🟢 **Risk Score:** 6/10  
-⚠️ **Red Flags:**  
-- Personal data is collected  
-- May be shared with third parties  
-- Tracking technologies used  
-- Limited user control over data
-    `.trim();
-
-    res.json({ summary });
+    res.json({ results, message: "These are potential data exposure sites. Visit manually to verify." });
   } catch (err) {
-    console.error('Hugging Face Error:', err.response?.data || err.message);
-    res.status(500).json({ error: 'Failed to generate summary' });
+    res.status(500).json({ error: 'Search failed' });
   }
-});
-
-const port = process.env.PORT || 3000;
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
 });
